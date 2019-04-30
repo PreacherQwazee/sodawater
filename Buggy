@@ -1,0 +1,278 @@
+import numpy as np
+import cv2
+import datetime
+import csv
+import os
+import pytesseract
+import pandas as pd
+
+cap = cv2.VideoCapture(1)
+cap.set(3, 1280)
+cap.set(4, 720)
+
+
+yes = ["Yes", "yes", "y", "Y"]
+no = ["No", "no", "N", "n"]
+
+# Screenshots an image from the videocapture and runs tesseract to
+# read the text in the picture.
+
+
+def image_read():
+    ret, frame = cap.read()
+    newimage = cv2.imwrite('wordnew.png', frame)
+
+    #cv2.imshow('Webcam Frames', frame)
+
+    config = ('-l eng --oem 1 --psm 11')
+    newimage = cv2.cvtColor(np.array(frame), cv2.IMREAD_COLOR)
+    last = cv2.imread('wordnew.png', cv2.IMREAD_COLOR)
+    text = pytesseract.image_to_string(last, config=config)
+
+    return text
+
+# Searches and filters for TPU keyword
+
+
+def TPU_read(text):
+    x = text.find("T")
+    newstring = text[x:]
+    newstring = newstring[0:8]
+    if str.isdigit(newstring[4:8]) == True:
+        return newstring
+
+# Searches and filters for AW keyword
+
+
+def AW_read(text):
+    x = text.find("A")
+    newstring = text[x:]
+    newstring = newstring[0:7]
+    if str.isdigit(newstring[3:7]) == True:
+        return newstring
+
+
+# Function reads the entire database, should potentially include specifics
+# such as station number, what date it was created, etc.
+def option_1(string, vn, sn):
+    now = datetime.datetime.now()
+    columns = ['Product ID', 'Version Number',
+               'Station Number', 'Date', 'Time Since']
+    # with open('Database.csv','a') as f:
+    data = {'Product ID': [string],
+            'Version Number': [vn],
+            'Station Number': [sn],
+            'Date': [str(now.strftime('%m/%d/%Y'))],
+            'Time Since': [str(now.strftime('%H:%M:%S'))]
+            }
+    df = pd.DataFrame(data, columns=columns)
+    f = open("Database.csv", "a+")
+    if string in open('Database.csv').read():
+        print("\nThis file is already in the database.\n")
+        print("Would you like to edit this ID.")
+        choice = input("Yes or No?\n>> ")
+        if choice in yes:
+            option_3(string)
+        elif choice in no:
+            introduction()
+        else:
+            print("Retry please")
+            introduction()
+    else:
+        if "Product ID" in open("Database.csv").read():
+            with open("Database.csv", "a") as f:
+                df.to_csv(f, header=False, index=False)
+        else:
+            with open("Database.csv", "a") as f:
+                df.to_csv(f, header=True, index=False)
+
+    df = pd.read_csv("Database.csv")
+    df.sort_values(by="Product ID")
+    print(df)
+    f.close()
+    return
+
+
+# Function checks if Model ID number is already in the database.
+def option_2():
+    f = open("Database.csv", "r")
+    string = input("What model would you like to check?\n>> ")
+    if string in f.read():
+        print("\n" + string + " is in the database.\n")
+        choice = input("Would you like to check another? Yes or no?\n>> ")
+        if choice in yes:
+            option_2()
+        if choice in no:
+            print("I'm sorry you feel that way.")
+        else:
+            print("Sorry I couldn't understand you. Lets try again.")
+            option_2()
+    else:
+        print("\nThis is not in the database. Would you like to try again?\n")
+        choice = input("Yes or No?\n>> ")
+        if choice in yes:
+            option_2()
+        if choice in no:
+            return
+        else:
+            print("Sorry, I didn't get that.")
+            option_2()
+    f.close()
+
+# Function has no purpose currently
+
+def option_3(string):
+    
+    now = datetime.datetime.now()
+    print("Would you like to edit the version number of " + string + ".")
+    choice_1 = input("Yes or No?\n>> ")
+    if choice_1 in yes:
+        new_vn = version_number()
+        print("New version number is " + str(new_vn) + ".")
+    elif choice_1 in no:
+        print("You have not editted anything here.")
+    else:
+        print("Does not compute. Beep Boop")
+        option_3(string)
+
+    print("Would you like to edit the station number of " + string + ".")
+    choice_2 = input("Yes or No?\n>> ")
+    if choice_2 in yes:
+        new_sn = station_number()
+        print("New station number is " + str(new_sn) + ".")
+    elif choice_2 in no:
+        print("You have not editted anything here.")
+    else:
+        print("Does not compute. Beep Boop")
+        option_3(string)
+
+    f = open("Database.csv", "a")
+    df = pd.read_csv("Database.csv")
+    df.loc[(df["Product ID"] == string), ["Version Number", "Station Number", "Date", "Time Since"]] = new_vn, new_sn, str(now.strftime('%m/%d/%Y')), str(now.strftime('%H:%M:%S'))
+    df.to_csv("Database.csv", index=False)
+
+    print(df)
+    f.close()
+
+
+# Function has no purpose currently
+
+
+def option_4():
+    df = pd.read_csv("Database.csv")
+    print(df)
+
+
+def version_number():
+    print("What version number is the device?")
+    vn = input(">> ")
+    if int(vn) >= 1 and int(vn) <= 10:
+        return int(vn)
+    else:
+        print("Sorry, I didn't get that. Try again.")
+        version_number()
+
+
+def station_number():
+    print("What station is the device at?")
+    print("[1] TPU Assembly.\n[2] TPU Testing.\n[3] Shelf Ready.\n[4] Reworks.")
+    sn = input(">> ")
+    if int(sn) >= 1 and int(sn) <= 4:
+        return int(sn)
+    else:
+        print("Sorry, I didn't get that. Try again.")
+        station_number()
+
+# Introduction to the program and what directions you can take
+
+
+def introduction():
+    print("Please enter an option number from the following.")
+    print("[1] Enter a new model ID into the database.\n[2] Check an existing model.\n[3] Edit an existing model.\n[4] Print Database.\n[5] Exit.")
+    option = input(">> ")
+    if int(option) == 1:
+        string = guts()
+        answer = input("You have selected " + string +
+                       ". Is this correct? Yes or No?\n>> ")
+        if answer in yes:
+            vn = version_number()
+            sn = station_number()
+            option_1(string, vn, sn)
+            os.remove("wordnew.png")
+        elif answer in no:
+            print("\nPlease reposition the target and try again.\n")
+            os.remove("wordnew.png")
+            introduction()
+        else:
+            print("Please try again.")
+        return 1
+    elif int(option) == 2:
+        option_2()
+        return 1
+    elif int(option) == 3:
+        string = guts()
+        answer = input("You have selected " + string +
+                       ". Is this correct? Yes or No?\n>> ")
+        if answer in yes:
+            option_3(string)
+        elif answer in no:
+            print("Then don't press 3. Idiot")
+        else:
+            introduction()
+    elif int(option) == 4:
+        option_4()
+        return 1
+    elif int(option) == 5:
+        return 0
+    else:
+        print("Try again.")
+        introduction()
+
+# Takes an image from the videocapture and filters. Runs a few times to
+# increase accuracy, then returns the word that is read.
+
+
+def guts():
+    while(True):
+
+        text = image_read()
+        text.strip()
+
+        if "TPU" in text:
+            newstring1 = TPU_read(text)
+            newstring2 = TPU_read(text)
+            newstring3 = TPU_read(text)
+            if newstring1 == newstring2 and newstring1 == newstring3 and newstring1 != None:
+                return newstring1
+            else:
+                print("Sorry, can't read the text. Please reposition.")
+                introduction()
+
+        if "AW" in text:
+            newstring1 = AW_read(text)
+            newstring2 = AW_read(text)
+            newstring3 = AW_read(text)
+            if newstring1 == newstring2 and newstring1 == newstring3 and newstring1 != None:
+                return newstring1
+            else:
+                print("Sorry, can't read the text. Please reposition.")
+                introduction()
+
+        newstring1 = []
+        newstring2 = []
+        newstring3 = []
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+
+# Main function with the flow of the program
+if __name__ == "__main__":
+    while(1):
+        a = introduction()
+
+        if a == 0:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
